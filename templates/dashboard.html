@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2>Threat Overview</h2>
+
+<div class="grid">
+{% for k,v in counts.items() %}
+<div class="card">
+<h4>{{ k }}</h4>
+<h1 class="{{ k|lower }}">{{ v }}</h1>
+</div>
+{% endfor %}
+</div>
+
+<div class="card" style="margin-top:20px;">
+<h3>Alerts</h3>
+{% for a in alerts %}
+<div class="alert">⚠ {{ a }}</div>
+{% endfor %}
+</div>
+
+<!-- TERMINAL -->
+<div class="card" style="margin-top:20px;">
+<h3>Live Security Terminal</h3>
+<div id="terminal"><div id="terminal-output"></div></div>
+</div>
+
+<div class="card" style="margin-top:20px;">
+<h3>Logs</h3>
+
+<a href="/dashboard">All</a> |
+<a href="?level=LOW">LOW</a> |
+<a href="?level=MEDIUM">MEDIUM</a> |
+<a href="?level=HIGH">HIGH</a> |
+<a href="?level=CRITICAL">CRITICAL</a>
+
+<table id="logTable">
+<tr><th>Time</th><th>Source</th><th>Message</th><th>Severity</th></tr>
+{% for log in logs %}
+<tr>
+<td>{{ log.time }}</td>
+<td>{{ log.source }}</td>
+<td>{{ log.message }}</td>
+<td class="{{ log.severity|lower }}">{{ log.severity }}</td>
+</tr>
+{% endfor %}
+</table>
+</div>
+
+<div class="grid" style="margin-top:20px;">
+<div class="card"><canvas id="pie"></canvas></div>
+<div class="card"><canvas id="bar"></canvas></div>
+<div class="card" style="grid-column: span 2;"><canvas id="line"></canvas></div>
+</div>
+
+<script>
+const counts = {{ counts | tojson }};
+
+new Chart(document.getElementById('pie'),{
+type:'pie',
+data:{labels:Object.keys(counts),datasets:[{data:Object.values(counts)}]},
+options:{maintainAspectRatio:false}
+});
+
+new Chart(document.getElementById('bar'),{
+type:'bar',
+data:{labels:Object.keys(counts),
+datasets:[{data:Object.values(counts),barPercentage:0.6,categoryPercentage:0.6}]},
+options:{maintainAspectRatio:false}
+});
+
+new Chart(document.getElementById('line'),{
+type:'line',
+data:{labels: {{ timeline_labels | tojson }},
+datasets:[{data: {{ timeline_data | tojson }}}]},
+options:{maintainAspectRatio:false}
+});
+
+/* REALTIME LOGS */
+setInterval(()=>{
+fetch('/api/logs')
+.then(r=>r.json())
+.then(d=>{
+document.getElementById("logTable").innerHTML+=`
+<tr>
+<td>${d.time}</td>
+<td>${d.source}</td>
+<td>${d.message}</td>
+<td class="${d.severity.toLowerCase()}">${d.severity}</td>
+</tr>`;
+});
+},3000);
+
+/* TERMINAL */
+const lines=[
+"Initializing NIDS...",
+"Scanning network...",
+"Detecting anomalies...",
+"⚠ Intrusion detected",
+"Blocking attacker...",
+"Monitoring traffic..."
+];
+
+let i=0,j=0;
+
+function type(){
+let output=document.getElementById("terminal-output");
+
+if(i<lines.length){
+let text=lines[i].substring(0,j++);
+output.innerHTML+=text+"<br>";
+
+if(j>lines[i].length){i++;j=0;}
+}else{
+output.innerHTML="";
+i=0;
+}
+
+setTimeout(type,50);
+}
+type();
+</script>
+
+<div class="card" style="margin-top:20px;">
+<h3>Blocked IPs</h3>
+<ul>
+{% for ip in blocked_ips %}
+<li>{{ ip }}</li>
+{% endfor %}
+</ul>
+</div>
+
+{% endblock %}
